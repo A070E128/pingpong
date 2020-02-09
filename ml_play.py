@@ -1,52 +1,19 @@
-"""The template of the main script of the machine learning process
-"""
+from mlgame import gameconfig
+import importlib
 
-import games.arkanoid.communication as comm
-from games.arkanoid.communication import ( \
-    SceneInfo, GameStatus, PlatformAction
-)
+if __name__ == "__main__":
+    try:
+        config = gameconfig.get_game_config()
+        game = importlib.import_module("games.{}.main".format(config.game_name))
 
-def ml_loop():
-    """The main loop of the machine learning process
-
-    This loop is run in a separate process, and communicates with the game process.
-
-    Note that the game process won't wait for the ml process to generate the
-    GameInstruction. It is possible that the frame of the GameInstruction
-    is behind of the current frame in the game process. Try to decrease the fps
-    to avoid this situation.
-    """
-
-    # === Here is the execution order of the loop === #
-    # 1. Put the initialization code here.
-
-    # 2. Inform the game process that ml process is ready before start the loop.
-    comm.ml_ready()
-
-    # 3. Start an endless loop.
-    while True:
-        # 3.1. Receive the scene information sent from the game process.
-        scene_info = comm.get_scene_info()
-
-        # 3.2. If the game is over or passed, the game process will reset
-        #      the scene and wait for ml process doing resetting job.
-        if scene_info.status == GameStatus.GAME_OVER or \
-            scene_info.status == GameStatus.GAME_PASS:
-            # Do some stuff if needed
-
-            # 3.2.1. Inform the game process that ml process is ready
-            comm.ml_ready()
-            continue
-
-        # 3.3. Put the code here to handle the scene information
-        ball_x = scene_info.ball[0]
-        ball_y = scene_info.ball[1]
-        platform_x = scene_info.platform[0]
-        # 3.4. Send the instruction for this frame to the game process
-        if ball_x < platform_x:
-            comm.send_instruction(scene_info.frame,
-            PlatformAction.MOVE_LEFT)
-        else:
-            comm.send_instruction(scene_info.frame,
-            PlatformAction.MOVE_RIGHT)
-            comm.send_instruction(scene_info.frame, PlatformAction.MOVE_LEFT)
+        if config.game_mode == gameconfig.GameMode.MANUAL:
+            game_execution = game.manual_mode
+        elif config.game_mode == gameconfig.GameMode.ML:
+            game_execution = game.ml_mode
+    except ModuleNotFoundError:
+        print("Error: Game \"{}\" is not found.".format(config.game_name))
+    except AttributeError as e:
+        print("Error: Game \"{}\" does not provide {} mode." \
+            .format(config.game_name, config.game_mode.name.lower()))
+    else:
+        game_execution(config)
